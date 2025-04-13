@@ -3,7 +3,6 @@ from mysql.connector import Error
 
 class DatabaseConnection:
     def __init__(self, connection_string):
-        # 解析连接串
         params = {}
         for param in connection_string.split(';'):
             if '=' in param:
@@ -23,7 +22,8 @@ class DatabaseConnection:
                 host=self.host,
                 user=self.user,
                 password=self.password,
-                database=self.database
+                database=self.database,
+                autocommit=False  # 自动进入事务模式
             )
             self.cursor = self.connection.cursor(dictionary=True)
             return True
@@ -32,10 +32,20 @@ class DatabaseConnection:
             return False
 
     def disconnect(self):
+      try:
         if self.cursor:
-            self.cursor.close()
+            try:
+                self.cursor.close()
+            except ReferenceError:
+                pass  # 忽略已被释放的引用
+
         if self.connection:
-            self.connection.close()
+            try:
+                self.connection.close()
+            except ReferenceError:
+                pass
+      except Exception as e:
+        print(f"断开连接时发生异常: {e}")
 
     def execute_query(self, query, params=None):
         try:
@@ -51,61 +61,85 @@ class DatabaseConnection:
                 return self.cursor.rowcount
         except Error as e:
             print(f"执行查询时出错: {e}")
+            self.connection.rollback()
             return None
 
     def execute_procedure(self, procedure_name, params=None):
+     try:
+        if not self.connection or not self.connection.is_connected():
+            self.connect()
+
+        if params is None:
+            params = []
+
+        processed_params = []
+        for param in params:
+            if isinstance(param, str) and param.startswith('@'):
+                var_name = param[1:]
+                self.cursor.execute(f"SET @{var_name} = NULL")
+                processed_params.append(f"@{var_name}")
+            else:
+                processed_params.append(param)
+
+        param_placeholders = ', '.join([
+            '%s' if not isinstance(p, str) or not p.startswith('@') else p
+            for p in processed_params
+        ])
+        call_query = f"CALL {procedure_name}({param_placeholders})"
+
+        # 执行 CALL 语句，去除掉 @变量参数
+        call_params = [
+            p for p in processed_params
+            if not isinstance(p, str) or not p.startswith('@')
+        ]
+        self.cursor.execute(call_query, call_params)
+
+        results = []
         try:
-            if not self.connection or not self.connection.is_connected():
-                self.connect()
-            
-            # 构建调用存储过程的SQL语句
-            if params is None:
-                params = []
-            
-            # 确保所有参数都被正确处理，避免类型转换问题
-            processed_params = []
-            for param in params:
-                if isinstance(param, str) and param.startswith('@'):
-                    # 对于输出参数，使用变量声明
-                    var_name = param[1:]  # 去掉@符号
-                    self.cursor.execute(f"SET @{var_name} = NULL")
-                    processed_params.append(f"@{var_name}")
-                else:
-                    processed_params.append(param)
-            
-            param_placeholders = ', '.join(['%s' if not isinstance(p, str) or not p.startswith('@') else p for p in processed_params])
-            call_query = f"CALL {procedure_name}({param_placeholders})"
-            
-            # 执行存储过程，不使用 multi=True 参数
-            self.cursor.execute(call_query, [p for p in processed_params if not isinstance(p, str) or not p.startswith('@')])
-            
-            # 获取所有结果集
-            results = []
             result = self.cursor.fetchall()
             if result:
                 results.append(result)
-            
-            # 处理可能的多个结果集
-            while self.cursor.nextset():
+        except:
+            pass
+
+        while self.cursor.nextset():
+            try:
                 result = self.cursor.fetchall()
                 if result:
                     results.append(result)
-            
-            # 获取输出参数的值
-            output_params = {}
-            for param in params:
-                if isinstance(param, str) and param.startswith('@'):
-                    var_name = param[1:]  # 去掉@符号
-                    self.cursor.execute(f"SELECT @{var_name} AS value")
-                    output_value = self.cursor.fetchone()
-                    if output_value:
-                        output_params[var_name] = output_value['value']
-            
-            # 将输出参数添加到结果中
-            if output_params:
-                results.append([output_params])
-            
-            return results
-        except Error as e:
-            print(f"执行存储过程时出错: {e}")
-            return None
+            except:
+                continue
+
+        # 获取输出参数（@变量）
+        output_params = {}
+        for param in params:
+            if isinstance(param, str) and param.startswith('@'):
+                var_name = param[1:]
+                self.cursor.execute(f"SELECT @{var_name} AS value")
+                output_value = self.cursor.fetchone()
+                if output_value:
+                    output_params[var_name] = output_value['value']
+
+        if output_params:
+            results.append([output_params])
+
+        # ✅ 提交事务，防止锁表
+        self.connection.commit()
+
+        return results
+
+     except Error as e:
+        print(f"执行存储过程时出错: {e}")
+        # ✅ 出错回滚事务
+        if self.connection:
+            self.connection.rollback()
+        return None
+
+
+    def commit(self):
+        if self.connection:
+            self.connection.commit()
+
+    def rollback(self):
+        if self.connection:
+            self.connection.rollback()

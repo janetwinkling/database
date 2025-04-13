@@ -136,11 +136,12 @@ class ReaderManagementFrame(ttk.Frame):
                 
                 # 更新读者
                 result = self.db.update_reader(reader_data)
+                '''
                 if result:
                     show_info("更新读者成功")
                     self.refresh()
                 else:
-                    show_error("更新读者失败")
+                    show_error("更新读者失败")'''
             except Exception as e:
                 show_error(f"更新读者时出错: {str(e)}")
     

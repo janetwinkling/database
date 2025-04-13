@@ -196,11 +196,14 @@ class BookManagementFrame(ttk.Frame):
                 
                 # 更新图书
                 result = self.db.update_book(book_data)
+                '''
+                print(f"Update result: {result}") 
                 if result:
                     show_info("更新图书成功")
                     self.refresh()
                 else:
                     show_error("更新图书失败")
+                '''
             except ValueError:
                 show_error("请输入有效的数字")
             except Exception as e:

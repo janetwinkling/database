@@ -30,6 +30,7 @@ class SchoolLibrarySystem:
         self.main_frame = ttk.Frame(self.root)
         self.main_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
+        
         # 创建欢迎标签
         welcome_label = ttk.Label(
             self.main_frame,
@@ -40,6 +41,7 @@ class SchoolLibrarySystem:
 
         # 创建功能按钮
         self.create_function_buttons()
+        
 
     def create_menu(self):
         """创建菜单栏"""
@@ -81,13 +83,16 @@ class SchoolLibrarySystem:
         query_menu.add_command(label="读者借阅历史", command=self.show_reader_history)
         menubar.add_cascade(label="查询", menu=query_menu)
 
+        
         # 帮助菜单
         help_menu = tk.Menu(menubar, tearoff=0)
         help_menu.add_command(label="关于", command=self.show_about)
         menubar.add_cascade(label="帮助", menu=help_menu)
+        
 
         self.root.config(menu=menubar)
 
+    
     def create_function_buttons(self):
         """创建功能按钮"""
         button_frame = ttk.Frame(self.main_frame)
@@ -111,6 +116,7 @@ class SchoolLibrarySystem:
             col = i % 3
             btn = ttk.Button(button_frame, text=text, command=command, width=20)
             btn.grid(row=row, column=col, padx=10, pady=10)
+    
 
     def clear_main_frame(self):
         """清空主框架"""
@@ -177,6 +183,7 @@ class SchoolLibrarySystem:
         self.clear_main_frame()
         ReaderHistoryFrame(self.main_frame, self.db)
 
+    
     # 帮助相关方法
     def show_about(self):
         """显示关于对话框"""
@@ -188,6 +195,7 @@ class SchoolLibrarySystem:
             "日期: 2025年4月\n\n"
             "本系统用于管理学校图书馆的图书借阅、归还、续借等业务。"
         )
+    
 
 # 主程序入口
 if __name__ == "__main__":
